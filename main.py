@@ -1,45 +1,52 @@
-__import__('pysqlite3')
-import sys
-sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
-
+from dotenv import load_dotenv
 import os
-import streamlit as st
 import pandas as pd
-from langchain_openai import OpenAIEmbeddings, ChatOpenAI
-from langchain_community.vectorstores import Chroma
-from langchain.chains import RetrievalQA
-import tempfile
+import streamlit as st
+from langchain_openai import ChatOpenAI
+import random
 
-API_KEY = os.getenv('OPENAI_API_KEY')
+# 스트림릿 앱의 제목 설정
+st.title("영어 단어 퀴즈")
 
-# 제목 설정
-st.title("영어단어 공부하기")
-st.write("---")
+# OpenAI API 키 환경 변수에서 로드
+api_key = os.getenv('OPENAI_API_KEY')
 
-# 파일 업로더
-uploaded_file = st.file_uploader("CSV 파일을 올려주세요!", type=['csv'])
-st.write("---")
+# 파일 업로더 위젯
+uploaded_file = st.file_uploader("CSV 파일을 업로드하세요", type="csv")
 
-if uploaded_file is not None:
-    # CSV 파일 로드
-    df = pd.read_csv(uploaded_file, encoding='utf-8')
-    
-    # 데이터 프레임에서 특정 열의 텍스트를 조합
-    combined_texts = df.apply(lambda x: f"{x['question number']}. {x['question']} Answer: {x['answer']}", axis=1).tolist()
+# 퀴즈를 위한 세션 상태 초기화
+if 'current_question' not in st.session_state:
+    st.session_state['current_question'] = None
+    st.session_state['correct_answer'] = None
+    st.session_state['user_answer'] = None
+    st.session_state['show_answer'] = False
 
-    # Embeddings 모델 초기화 (API 키 직접 사용)
-    embeddings_model = OpenAIEmbeddings(api_key=API_KEY)
+def load_new_question():
+    if uploaded_file is not None:
+        df = pd.read_csv(uploaded_file)
+        random_row = df.sample(n=1)
+        st.session_state['current_question'] = random_row.iloc[0]['question']
+        st.session_state['correct_answer'] = random_row.iloc[0]['answer'].strip().lower()
+        st.session_state['show_answer'] = False
 
-    # Chroma 객체로 문서 임베딩
-    db = Chroma.from_documents(combined_texts, embeddings_model)
+def check_answer():
+    st.session_state['user_answer'] = st.session_state['answer_input'].strip().lower()
+    st.session_state['show_answer'] = True
 
-    # 질문 입력 및 처리
-    st.header("궁금한 단어를 입력해보세요.")
-    question = st.text_input('질문을 입력하세요')
-    
-    if st.button('질문하기') and question:
-        with st.spinner('Wait for it...'):
-            chat_model = ChatOpenAI(api_key=API_KEY, model_name="gpt-3.5-turbo", temperature=0)
-            qa_chain = RetrievalQA.from_chain_type(chat_model, retriever=db.as_retriever())
-            result = qa_chain({"query": question})
-            st.write(result["result"])
+# 새로운 퀴즈를 로드하는 버튼
+st.button("새 퀴즈 시작", on_click=load_new_question)
+
+# 질문 표시
+if st.session_state['current_question']:
+    st.write("퀴즈:", st.session_state['current_question'])
+
+    # 사용자 답변 입력 및 제출 버튼
+    st.session_state['answer_input'] = st.text_input("답을 입력하세요.")
+    st.button("답변 제출", on_click=check_answer)
+
+    # 정답 확인
+    if st.session_state['show_answer']:
+        if st.session_state['user_answer'] == st.session_state['correct_answer']:
+            st.success("정답입니다!")
+        else:
+            st.error(f"틀렸습니다. 정답은 {st.session_state['correct_answer']}입니다.")
