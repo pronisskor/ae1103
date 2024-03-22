@@ -2,44 +2,44 @@ __import__('pysqlite3')
 import sys
 sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
 
-from langchain_community.document_loaders.csv_loader import CSVLoader
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_openai import OpenAIEmbeddings
+import os
+import streamlit as st
+import pandas as pd
+from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_community.vectorstores import Chroma
-from langchain_openai import ChatOpenAI
 from langchain.chains import RetrievalQA
-# import getpass
-# import os
-# import pandas as pd
+import tempfile
 
+API_KEY = os.getenv('OPENAI_API_KEY')
 
-#loder
-loader = CSVLoader(file_path='./1-100.csv', encoding='utf-8')  
-pages = loader.load_and_split()
+# 제목 설정
+st.title("영어단어 공부하기")
+st.write("---")
 
-# df = pd.read_csv('./1-100.csv', encoding='utf-8')
-# pages = df
+# 파일 업로더
+uploaded_file = st.file_uploader("CSV 파일을 올려주세요!", type=['csv'])
+st.write("---")
 
-#Split
-text_splitter = RecursiveCharacterTextSplitter(    
-    chunk_size=100,
-    chunk_overlap=20,
-    length_function=len,
-    is_separator_regex=False,
-)
-texts = text_splitter.split_documents(pages)
+if uploaded_file is not None:
+    # CSV 파일 로드
+    df = pd.read_csv(uploaded_file, encoding='utf-8')
+    
+    # 데이터 프레임에서 특정 열의 텍스트를 조합
+    combined_texts = df.apply(lambda x: f"{x['question number']}. {x['question']} Answer: {x['answer']}", axis=1).tolist()
 
-#Embedding
-embeddings_model = OpenAIEmbeddings()
+    # Embeddings 모델 초기화 (API 키 직접 사용)
+    embeddings_model = OpenAIEmbeddings(api_key=API_KEY)
 
-# load it into Chroma
-db = Chroma.from_documents(texts, embeddings_model)
+    # Chroma 객체로 문서 임베딩
+    db = Chroma.from_documents(combined_texts, embeddings_model)
 
-# Question
-question = "question number는 몇 개 있어?"
-llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125", temperature=0)
-qa_chain = RetrievalQA.from_chain_type(llm,retriever=db.as_retriever())
-result = qa_chain({"query": question})
-print(result)
-
-  
+    # 질문 입력 및 처리
+    st.header("궁금한 단어를 입력해보세요.")
+    question = st.text_input('질문을 입력하세요')
+    
+    if st.button('질문하기') and question:
+        with st.spinner('Wait for it...'):
+            chat_model = ChatOpenAI(api_key=API_KEY, model_name="gpt-3.5-turbo", temperature=0)
+            qa_chain = RetrievalQA.from_chain_type(chat_model, retriever=db.as_retriever())
+            result = qa_chain({"query": question})
+            st.write(result["result"])
