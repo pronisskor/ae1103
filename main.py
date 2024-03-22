@@ -1,14 +1,45 @@
-import streamlit as st
+__import__('pysqlite3')
+import sys
+sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+
+from langchain_community.document_loaders.csv_loader import CSVLoader
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_openai import OpenAIEmbeddings
+from langchain_community.vectorstores import Chroma
 from langchain_openai import ChatOpenAI
+from langchain.chains import RetrievalQA
+# import getpass
+# import os
+# import pandas as pd
 
 
-chat_model = ChatOpenAI()
+#loder
+loader = CSVLoader(file_path='./1-100.csv', encoding='utf-8')  
+pages = loader.load_and_split()
 
-st.title('AI English')
+# df = pd.read_csv('./1-100.csv', encoding='utf-8')
+# pages = df
 
-content = st.text_input('공부할 주제를 회화와 단어 중에 선택해주세요.')
+#Split
+text_splitter = RecursiveCharacterTextSplitter(    
+    chunk_size=100,
+    chunk_overlap=20,
+    length_function=len,
+    is_separator_regex=False,
+)
+texts = text_splitter.split_documents(pages)
 
-if st.button('영어공부하기'):
-    with st.spinner('Wait for it...'):
-          result = chat_model.predict(content + "란 영어 단어 뜻을 간단히 설명해줘")
-          st.write(result)
+#Embedding
+embeddings_model = OpenAIEmbeddings()
+
+# load it into Chroma
+db = Chroma.from_documents(texts, embeddings_model)
+
+# Question
+question = "question number는 몇 개 있어?"
+llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125", temperature=0)
+qa_chain = RetrievalQA.from_chain_type(llm,retriever=db.as_retriever())
+result = qa_chain({"query": question})
+print(result)
+
+  
