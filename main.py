@@ -49,7 +49,7 @@ if uploaded_file is not None:
             st.write(f"모든 문제를 풀었습니다! 정답: {st.session_state.correct_answers}, 오답: {st.session_state.quiz_number - st.session_state.correct_answers}")
             st.session_state.used_indexes = []
             st.session_state.quiz_number = 0
-            st.write("퀴즈를 다시 시작하려면 'New Quiz' 버튼을 클릭하세요.")
+            st.write("다시 복습하려면 'New Quiz' 버튼을 클릭하세요.")
 
 
     if st.session_state.current_index != -1:
