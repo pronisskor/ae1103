@@ -56,7 +56,8 @@ if uploaded_file is not None:
         question = st.session_state.quiz_data[st.session_state.current_index]['question']
         answer = st.session_state.quiz_data[st.session_state.current_index]['answer'].strip().lower()
 
-        st.write(f"문제 {st.session_state.quiz_number}: {question}")
+        st.markdown(f"<h5 style='font-weight:bold; text-align:center;'>문제 {st.session_state.quiz_number}: {question}</h5>", unsafe_allow_html=True)
+
 
         with st.form(key='answer_form'):
             user_answer = st.text_input("답을 입력하세요.", value="", key=f"user_answer_{st.session_state.current_index}")
